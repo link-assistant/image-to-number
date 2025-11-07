@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
-import { execSync } from 'child_process';
-import { copyFileSync, mkdirSync, rmSync } from 'fs';
+import { copyFile, mkdir, rm, writeFile } from 'fs/promises';
 import { randomBytes } from 'crypto';
 
 // Use use-m to load command-stream and yargs
@@ -28,7 +27,7 @@ export async function imageToNumber(imagePathOrUrl, model = 'haiku', keepTempora
 
   try {
     // Create temporary directory
-    mkdirSync(tempDir, { recursive: true });
+    await mkdir(tempDir, { recursive: true });
 
     let imagePath;
     const isUrl = imagePathOrUrl.startsWith('http://') || imagePathOrUrl.startsWith('https://');
@@ -50,14 +49,19 @@ export async function imageToNumber(imagePathOrUrl, model = 'haiku', keepTempora
     if (isUrl) {
       // Download URL to temp directory
       try {
-        execSync(`curl -s -o "${imagePath}" "${imagePathOrUrl}"`, { stdio: 'pipe' });
+        const response = await fetch(imagePathOrUrl);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const buffer = Buffer.from(await response.arrayBuffer());
+        await writeFile(imagePath, buffer);
       } catch (error) {
         throw new Error(`Failed to download image from URL: ${error.message}`);
       }
     } else {
       // Copy local file to temp directory
       try {
-        copyFileSync(imagePathOrUrl, imagePath);
+        await copyFile(imagePathOrUrl, imagePath);
       } catch (error) {
         throw new Error(`Failed to copy image file: ${error.message}`);
       }
@@ -119,7 +123,7 @@ export async function imageToNumber(imagePathOrUrl, model = 'haiku', keepTempora
     // Clean up temporary directory unless keepTemp is true
     if (shouldCleanup) {
       try {
-        rmSync(tempDir, { recursive: true, force: true });
+        await rm(tempDir, { recursive: true, force: true });
       } catch (error) {
         // Ignore cleanup errors
       }
