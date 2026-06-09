@@ -52,10 +52,7 @@ test('resolveExtension extracts known extensions', () => {
 });
 
 test('resolveExtension ignores query strings', () => {
-  assert.equal(
-    resolveExtension('https://example.com/a.png?token=abc'),
-    '.png'
-  );
+  assert.equal(resolveExtension('https://example.com/a.png?token=abc'), '.png');
 });
 
 test('resolveExtension defaults to .png when none is present', () => {

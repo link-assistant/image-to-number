@@ -137,9 +137,61 @@ export function buildPrompt(imageFileName) {
   return `${imageFileName}\n\nWhat number do you see in this image? Output ONLY the digits you see, nothing else.`;
 }
 
+/**
+ * Place the source image (local path or URL) at `destPath`.
+ * @param {string} imagePathOrUrl - Source path or URL.
+ * @param {string} destPath - Absolute destination path.
+ * @returns {Promise<void>}
+ * @throws {Error} When the download or copy fails.
+ */
+async function materializeImage(imagePathOrUrl, destPath) {
+  if (isUrl(imagePathOrUrl)) {
+    try {
+      const response = await fetch(imagePathOrUrl);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const buffer = Buffer.from(await response.arrayBuffer());
+      await writeFile(destPath, buffer);
+    } catch (error) {
+      throw new Error(`Failed to download image from URL: ${error.message}`);
+    }
+  } else {
+    try {
+      await copyFile(imagePathOrUrl, destPath);
+    } catch (error) {
+      throw new Error(`Failed to copy image file: ${error.message}`);
+    }
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Main entry point.
 // ---------------------------------------------------------------------------
+
+/**
+ * Normalize `imageToNumber`'s overloaded second/third arguments into a single
+ * options object. Supports both the legacy positional form
+ * (`imageToNumber(path, model, keepTemporaryFile)`) and the options form
+ * (`imageToNumber(path, { model, keepTemporaryFile, agent })`).
+ * @param {string|Object} modelOrOptions - Model alias or options object.
+ * @param {boolean} keepTemporaryFile - Legacy positional flag.
+ * @returns {{ model: string, keepTemp: boolean, agentFactory: Function|undefined }}
+ */
+export function normalizeOptions(modelOrOptions, keepTemporaryFile) {
+  if (modelOrOptions && typeof modelOrOptions === 'object') {
+    return {
+      model: modelOrOptions.model ?? 'haiku',
+      keepTemp: modelOrOptions.keepTemporaryFile ?? keepTemporaryFile,
+      agentFactory: modelOrOptions.agent,
+    };
+  }
+  return {
+    model: typeof modelOrOptions === 'string' ? modelOrOptions : 'haiku',
+    keepTemp: keepTemporaryFile,
+    agentFactory: undefined,
+  };
+}
 
 /**
  * Extract the number drawn in an image using Claude via agent-commander.
@@ -160,22 +212,13 @@ export async function imageToNumber(
   modelOrOptions = 'haiku',
   keepTemporaryFile = false
 ) {
-  // Normalize the legacy positional signature and the options-object form.
-  let model = 'haiku';
-  let keepTemp = keepTemporaryFile;
-  let agentFactory;
+  const {
+    model,
+    keepTemp,
+    agentFactory: injected,
+  } = normalizeOptions(modelOrOptions, keepTemporaryFile);
 
-  if (modelOrOptions && typeof modelOrOptions === 'object') {
-    model = modelOrOptions.model ?? 'haiku';
-    keepTemp = modelOrOptions.keepTemporaryFile ?? keepTemporaryFile;
-    agentFactory = modelOrOptions.agent;
-  } else if (typeof modelOrOptions === 'string') {
-    model = modelOrOptions;
-  }
-
-  if (!agentFactory) {
-    agentFactory = await loadAgent();
-  }
+  const agentFactory = injected ?? (await loadAgent());
 
   // Create an isolated temporary directory for this operation.
   const randomName = randomBytes(16).toString('hex');
@@ -190,26 +233,7 @@ export async function imageToNumber(
     const imageFileName = `image${extension}`;
     const imagePath = `${tempDir}/${imageFileName}`;
 
-    if (isUrl(imagePathOrUrl)) {
-      try {
-        const response = await fetch(imagePathOrUrl);
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const buffer = Buffer.from(await response.arrayBuffer());
-        await writeFile(imagePath, buffer);
-      } catch (error) {
-        throw new Error(
-          `Failed to download image from URL: ${error.message}`
-        );
-      }
-    } else {
-      try {
-        await copyFile(imagePathOrUrl, imagePath);
-      } catch (error) {
-        throw new Error(`Failed to copy image file: ${error.message}`);
-      }
-    }
+    await materializeImage(imagePathOrUrl, imagePath);
 
     // Ask Claude (via agent-commander) what number is in the image. The agent
     // runs with the temp dir as its working directory, so it can read the
