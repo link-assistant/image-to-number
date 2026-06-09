@@ -52,7 +52,7 @@ jobs:
       - name: Duplication (jscpd)
         run: npm run check:duplication
       - name: Secret scan (secretlint)
-        run: npx secretlint "**/*"
+        run: npx --yes -p secretlint -p @secretlint/secretlint-rule-preset-recommend secretlint "**/*"
 
   test:
     name: Unit tests (Node ${{ matrix.node }})
