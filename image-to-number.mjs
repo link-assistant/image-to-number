@@ -3,51 +3,193 @@
 import { copyFile, mkdir, rm, writeFile } from 'fs/promises';
 import { randomBytes } from 'crypto';
 
-// Use use-m to load command-stream and yargs
-const { use } = eval(await (await fetch('https://unpkg.com/use-m/use.js')).text());
-const { $ } = await use('command-stream');
-const yargsModule = await use('yargs@17.7.2');
-const yargs = (yargsModule.default || yargsModule);
-const { hideBin } = await use('yargs@17.7.2/helpers');
+/**
+ * image-to-number
+ * ----------------
+ * A tiny tool that reads the number drawn in an image by asking the
+ * Anthropic Claude Code CLI (via the `agent-commander` library) to look at it.
+ *
+ * It can be used three ways:
+ *   1. As a CLI:                node image-to-number.mjs <image-path-or-url>
+ *   2. As an imported function: import { imageToNumber } from './image-to-number.mjs'
+ *   3. Straight from GitHub:    curl -fsSL <raw-url>/image-to-number.sh | sh -s -- <image>
+ *
+ * Dependencies are loaded at runtime from a CDN through `use-m`, so the script
+ * works with zero `npm install` — which is what makes the `curl | sh` flow above
+ * possible.
+ */
+
+// ---------------------------------------------------------------------------
+// Runtime dependency loading (lazy, so importing this module never touches the
+// network — unit tests can import the pure helpers below without any fetch).
+// ---------------------------------------------------------------------------
+
+let _useM;
+let _agentCommander;
 
 /**
- * Extract number(s) from an image using Claude via command-stream
- * Can be used as a CLI tool or imported as a function
- *
- * @param {string} imagePathOrUrl - File path or URL to the image
- * @param {string} model - Claude model to use: 'haiku', 'sonnet', or 'opus' (default: 'haiku')
- * @param {boolean} keepTemporaryFile - Keep temporary file after processing (default: false)
- * @returns {Promise<number>} - The digit(s) found in the image
+ * Load the `use-m` universal module loader from its CDN.
+ * Cached after the first call.
+ * @returns {Promise<Function>} The `use` function.
  */
-export async function imageToNumber(imagePathOrUrl, model = 'haiku', keepTemporaryFile = false) {
-  // Create a temporary directory for this operation
+export async function loadUse() {
+  if (_useM) {
+    return _useM;
+  }
+  const useModule = eval(
+    await (await fetch('https://unpkg.com/use-m/use.js')).text()
+  );
+  _useM = useModule.use;
+  return _useM;
+}
+
+/**
+ * Load the `agent-commander` library (the `agent` factory) via `use-m`.
+ * Cached after the first call.
+ * @returns {Promise<Function>} The `agent` factory from agent-commander.
+ */
+export async function loadAgent() {
+  if (_agentCommander) {
+    return _agentCommander;
+  }
+  const use = await loadUse();
+  const mod = await use('agent-commander');
+  _agentCommander = mod.agent;
+  return _agentCommander;
+}
+
+// ---------------------------------------------------------------------------
+// Pure helpers (no I/O, no network) — easy to unit test.
+// ---------------------------------------------------------------------------
+
+/**
+ * Determine whether a string is an HTTP(S) URL.
+ * @param {string} value - Path or URL.
+ * @returns {boolean} True when the value looks like an http(s) URL.
+ */
+export function isUrl(value) {
+  return (
+    typeof value === 'string' &&
+    (value.startsWith('http://') || value.startsWith('https://'))
+  );
+}
+
+/**
+ * Extract the file extension (including the leading dot) from a path or URL.
+ * Query strings are ignored. Defaults to `.png` when none is found.
+ * @param {string} imagePathOrUrl - File path or URL to the image.
+ * @returns {string} The extension, e.g. `.png`.
+ */
+export function resolveExtension(imagePathOrUrl) {
+  const withoutQuery = String(imagePathOrUrl).split('?')[0];
+  const match = withoutQuery.match(/\.\w+$/);
+  return match ? match[0] : '.png';
+}
+
+/**
+ * Concatenate the assistant text from agent-commander parsed messages.
+ * The Claude stream-json output is an array of message objects; assistant
+ * turns carry `message.content` blocks, and text blocks have a `text` field.
+ * @param {Array|null} messages - Parsed messages from `result.output.parsed`.
+ * @returns {string|null} The combined assistant text, or null if none found.
+ */
+export function extractAnswerText(messages) {
+  if (!Array.isArray(messages)) {
+    return null;
+  }
+
+  let answer = null;
+  for (const data of messages) {
+    if (data?.type === 'assistant' && Array.isArray(data.message?.content)) {
+      for (const block of data.message.content) {
+        if (block?.type === 'text' && typeof block.text === 'string') {
+          answer = (answer ?? '') + block.text;
+        }
+      }
+    }
+  }
+  return answer;
+}
+
+/**
+ * Extract the number from a free-form answer string.
+ * Captures the first contiguous run of digits, so both "7" and "42" work.
+ * @param {string} answer - The raw answer text.
+ * @returns {number} The parsed integer.
+ * @throws {Error} When the answer contains no digits.
+ */
+export function extractNumber(answer) {
+  const trimmed = String(answer ?? '').trim();
+  const match = trimmed.match(/\d+/);
+  if (!match) {
+    throw new Error(`Claude returned a non-digit answer: ${trimmed}`);
+  }
+  return parseInt(match[0], 10);
+}
+
+/**
+ * Build the prompt asking Claude to read the number from a given file.
+ * @param {string} imageFileName - File name (relative to the working dir).
+ * @returns {string} The prompt text.
+ */
+export function buildPrompt(imageFileName) {
+  return `${imageFileName}\n\nWhat number do you see in this image? Output ONLY the digits you see, nothing else.`;
+}
+
+// ---------------------------------------------------------------------------
+// Main entry point.
+// ---------------------------------------------------------------------------
+
+/**
+ * Extract the number drawn in an image using Claude via agent-commander.
+ *
+ * Backward-compatible signature: the second argument may be a model string
+ * (legacy) or an options object.
+ *
+ * @param {string} imagePathOrUrl - File path or URL to the image.
+ * @param {string|Object} [modelOrOptions='haiku'] - Model alias, or options.
+ * @param {string} [modelOrOptions.model='haiku'] - Claude model alias.
+ * @param {boolean} [modelOrOptions.keepTemporaryFile=false] - Keep temp dir.
+ * @param {Function} [modelOrOptions.agent] - Inject an agent factory (testing).
+ * @param {boolean} [keepTemporaryFile=false] - Legacy positional flag.
+ * @returns {Promise<number>} The number found in the image.
+ */
+export async function imageToNumber(
+  imagePathOrUrl,
+  modelOrOptions = 'haiku',
+  keepTemporaryFile = false
+) {
+  // Normalize the legacy positional signature and the options-object form.
+  let model = 'haiku';
+  let keepTemp = keepTemporaryFile;
+  let agentFactory;
+
+  if (modelOrOptions && typeof modelOrOptions === 'object') {
+    model = modelOrOptions.model ?? 'haiku';
+    keepTemp = modelOrOptions.keepTemporaryFile ?? keepTemporaryFile;
+    agentFactory = modelOrOptions.agent;
+  } else if (typeof modelOrOptions === 'string') {
+    model = modelOrOptions;
+  }
+
+  if (!agentFactory) {
+    agentFactory = await loadAgent();
+  }
+
+  // Create an isolated temporary directory for this operation.
   const randomName = randomBytes(16).toString('hex');
   const tempDir = `/tmp/image-to-number-${randomName}`;
-  let shouldCleanup = !keepTemporaryFile;
 
   try {
-    // Create temporary directory
     await mkdir(tempDir, { recursive: true });
 
-    let imagePath;
-    const isUrl = imagePathOrUrl.startsWith('http://') || imagePathOrUrl.startsWith('https://');
+    // Copy/download the image under a generic name so the file name itself
+    // never hints at the answer.
+    const extension = resolveExtension(imagePathOrUrl);
+    const imageFileName = `image${extension}`;
+    const imagePath = `${tempDir}/${imageFileName}`;
 
-    // Extract extension from original file/URL (default to .png if not found)
-    let extension = '.png';
-    if (isUrl) {
-      const urlPath = imagePathOrUrl.split('?')[0]; // Remove query params
-      const match = urlPath.match(/\.\w+$/);
-      if (match) extension = match[0];
-    } else {
-      const match = imagePathOrUrl.match(/\.\w+$/);
-      if (match) extension = match[0];
-    }
-
-    // Use generic filename to avoid any bias
-    imagePath = `${tempDir}/image${extension}`;
-
-    if (isUrl) {
-      // Download URL to temp directory
+    if (isUrl(imagePathOrUrl)) {
       try {
         const response = await fetch(imagePathOrUrl);
         if (!response.ok) {
@@ -56,10 +198,11 @@ export async function imageToNumber(imagePathOrUrl, model = 'haiku', keepTempora
         const buffer = Buffer.from(await response.arrayBuffer());
         await writeFile(imagePath, buffer);
       } catch (error) {
-        throw new Error(`Failed to download image from URL: ${error.message}`);
+        throw new Error(
+          `Failed to download image from URL: ${error.message}`
+        );
       }
     } else {
-      // Copy local file to temp directory
       try {
         await copyFile(imagePathOrUrl, imagePath);
       } catch (error) {
@@ -67,78 +210,64 @@ export async function imageToNumber(imagePathOrUrl, model = 'haiku', keepTempora
       }
     }
 
-    const prompt = `${imagePath}\n\nWhat number do you see in this image? Output ONLY the digits you see, nothing else.`;
+    // Ask Claude (via agent-commander) what number is in the image. The agent
+    // runs with the temp dir as its working directory, so it can read the
+    // image by its relative name.
+    const controller = agentFactory({
+      tool: 'claude',
+      workingDirectory: tempDir,
+      prompt: buildPrompt(imageFileName),
+      model,
+      json: true,
+    });
 
-    // Use command-stream to properly handle stdin with image
-    const result = await $({
-      cwd: process.cwd(),
-      stdin: prompt,
-      mirror: false
-    })`claude --output-format stream-json --model ${model} --add-dir "${tempDir}"`;
+    await controller.start({ attached: false });
+    const result = await controller.stop();
 
-    // Extract output from result object
-    const output = result.stdout || result.output || result.toString();
-
-    // Parse NDJSON output
-    const lines = output.split('\n');
-    let answer = null;
-
-    for (const line of lines) {
-      if (!line.trim()) continue;
-
-      try {
-        const data = JSON.parse(line);
-
-        // Look for assistant message with content
-        if (data.type === 'assistant' && data.message?.content) {
-          for (const block of data.message.content) {
-            if (block.type === 'text' && block.text) {
-              if (answer === null) {
-                answer = '';
-              }
-              answer += block.text;
-            }
-          }
-        }
-      } catch (parseError) {
-        continue;
-      }
+    if (result.exitCode !== 0) {
+      throw new Error(
+        `Claude exited with code ${result.exitCode}: ${result.output?.plain ?? ''}`
+      );
     }
 
+    const answer = extractAnswerText(result.output?.parsed);
     if (answer === null) {
       throw new Error('No answer found in Claude response');
     }
 
-    // Clean up and extract digit
-    answer = answer.trim();
-    const digitMatch = answer.match(/\d/);
-
-    if (!digitMatch) {
-      throw new Error(`Claude returned non-digit answer: ${answer}`);
-    }
-
-    return parseInt(digitMatch[0], 10);
-
+    return extractNumber(answer);
   } finally {
-    // Clean up temporary directory unless keepTemp is true
-    if (shouldCleanup) {
+    if (!keepTemp) {
       try {
         await rm(tempDir, { recursive: true, force: true });
-      } catch (error) {
-        // Ignore cleanup errors
+      } catch {
+        // Ignore cleanup errors.
       }
     }
   }
 }
 
-// CLI usage
-if (import.meta.url === `file://${process.argv[1]}`) {
-  const argv = yargs(hideBin(process.argv))
-    .usage('Usage: $0 <image-path-or-url> [options]')
-    .command('$0 <image>', 'Extract digit from image', (yargs) => {
-      yargs.positional('image', {
+// ---------------------------------------------------------------------------
+// CLI.
+// ---------------------------------------------------------------------------
+
+/**
+ * Run the command-line interface.
+ * @param {string[]} argv - Process arguments (typically `process.argv`).
+ * @returns {Promise<number>} Process exit code.
+ */
+export async function runCli(argv) {
+  const use = await loadUse();
+  const yargsModule = await use('yargs@17.7.2');
+  const yargs = yargsModule.default || yargsModule;
+  const { hideBin } = await use('yargs@17.7.2/helpers');
+
+  const args = yargs(hideBin(argv))
+    .usage('Usage: $0 <image> [options]')
+    .command('$0 <image>', 'Extract the number from an image', (y) => {
+      y.positional('image', {
         describe: 'Path or URL to the image file',
-        type: 'string'
+        type: 'string',
       });
     })
     .option('model', {
@@ -146,22 +275,47 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       type: 'string',
       description: 'Claude model to use',
       default: 'haiku',
-      choices: ['haiku', 'sonnet', 'opus']
+      choices: ['haiku', 'sonnet', 'opus'],
     })
     .option('keep-temporary-file', {
       type: 'boolean',
-      description: 'Keep temporary file after processing',
-      default: false
+      description: 'Keep the temporary file after processing',
+      default: false,
     })
     .help()
     .alias('help', 'h')
-    .argv;
+    .strict().argv;
 
   try {
-    const digit = await imageToNumber(argv.image, argv.model, argv.keepTemporaryFile);
-    console.log(digit);
+    const number = await imageToNumber(args.image, {
+      model: args.model,
+      keepTemporaryFile: args.keepTemporaryFile,
+    });
+    console.log(number);
+    return 0;
   } catch (error) {
     console.error('Error:', error.message);
-    process.exit(1);
+    return 1;
   }
+}
+
+/**
+ * Detect whether this module is being run directly as a script (as opposed to
+ * being imported). Works for both `node image-to-number.mjs` and symlinked bins.
+ * @returns {boolean} True when run as the entry point.
+ */
+function isCliEntryPoint() {
+  if (!process.argv[1]) {
+    return false;
+  }
+  const invoked = process.argv[1];
+  return (
+    import.meta.url === `file://${invoked}` ||
+    import.meta.url.endsWith('/image-to-number.mjs')
+  );
+}
+
+if (isCliEntryPoint()) {
+  const code = await runCli(process.argv);
+  process.exit(code);
 }
