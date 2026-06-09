@@ -2,6 +2,7 @@
 
 import { copyFile, mkdir, rm, writeFile } from 'fs/promises';
 import { randomBytes } from 'crypto';
+import { pathToFileURL } from 'url';
 
 /**
  * image-to-number
@@ -264,12 +265,6 @@ export async function runCli(argv) {
 
   const args = yargs(hideBin(argv))
     .usage('Usage: $0 <image> [options]')
-    .command('$0 <image>', 'Extract the number from an image', (y) => {
-      y.positional('image', {
-        describe: 'Path or URL to the image file',
-        type: 'string',
-      });
-    })
     .option('model', {
       alias: 'm',
       type: 'string',
@@ -283,11 +278,17 @@ export async function runCli(argv) {
       default: false,
     })
     .help()
-    .alias('help', 'h')
-    .strict().argv;
+    .alias('help', 'h').argv;
+
+  const image = args._[0];
+  if (!image) {
+    console.error('Error: missing required <image> argument.');
+    console.error('Usage: image-to-number.mjs <image-path-or-url> [options]');
+    return 1;
+  }
 
   try {
-    const number = await imageToNumber(args.image, {
+    const number = await imageToNumber(String(image), {
       model: args.model,
       keepTemporaryFile: args.keepTemporaryFile,
     });
@@ -308,11 +309,7 @@ function isCliEntryPoint() {
   if (!process.argv[1]) {
     return false;
   }
-  const invoked = process.argv[1];
-  return (
-    import.meta.url === `file://${invoked}` ||
-    import.meta.url.endsWith('/image-to-number.mjs')
-  );
+  return import.meta.url === pathToFileURL(process.argv[1]).href;
 }
 
 if (isCliEntryPoint()) {
