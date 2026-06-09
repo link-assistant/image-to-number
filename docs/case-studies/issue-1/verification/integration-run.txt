@@ -1,0 +1,30 @@
+TAP version 13
+# Subtest: imageToNumber reads a.png as 7 via real haiku
+ok 1 - imageToNumber reads a.png as 7 via real haiku
+  ---
+  duration_ms: 6684.041473
+  ...
+# Subtest: imageToNumber reads b.png as 4 via real haiku
+ok 2 - imageToNumber reads b.png as 4 via real haiku
+  ---
+  duration_ms: 5910.678509
+  ...
+# Subtest: imageToNumber reads n.png as 1 via real haiku
+ok 3 - imageToNumber reads n.png as 1 via real haiku
+  ---
+  duration_ms: 5356.706075
+  ...
+# Subtest: imageToNumber downloads and reads an image from a URL via real haiku
+ok 4 - imageToNumber downloads and reads an image from a URL via real haiku
+  ---
+  duration_ms: 5879.427111
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 4
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 23892.598317

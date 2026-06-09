@@ -1,0 +1,40 @@
+{
+  "exitCode": 0,
+  "parsedAnswer": "7",
+  "metadata": {
+    "tool": "claude",
+    "exitCode": 0,
+    "success": false,
+    "sessionId": "f1f3ecc7-745d-429e-bcac-ed5d0ea82489",
+    "limitReached": true,
+    "limitResetTime": null,
+    "limitTimezone": null,
+    "anthropicTotalCostUSD": 0.00881275,
+    "publicPricingEstimate": null,
+    "pricingInfo": null,
+    "resultSummary": "7",
+    "resultModelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 18,
+        "outputTokens": 149,
+        "cacheReadInputTokens": 38385,
+        "cacheCreationInputTokens": 3369,
+        "webSearchRequests": 0,
+        "costUSD": 0.00881275,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      }
+    },
+    "streamTokenUsage": {
+      "inputTokens": 36,
+      "outputTokens": 8,
+      "cacheCreationTokens": 6738,
+      "cacheReadTokens": 76770
+    },
+    "subAgentCalls": null,
+    "errorDuringExecution": false,
+    "errorType": null,
+    "errorMessage": null
+  },
+  "note": "metadata.success=false / limitReached=true despite exitCode 0 and a correct answer. Root cause: detectUsageLimit() regex /rate[_\\s-]?limit.../i matches the substring \"ratelimit\" in the anthropic-ratelimit-* HTTP header names printed in stream-json. Reported as agent-commander#37."
+}

@@ -26,9 +26,14 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
           registry-url: 'https://registry.npmjs.org'
+
+      # npm OIDC trusted publishing requires npm >= 11.5.1. Node 24 ships npm 11
+      # but not always >= 11.5.1, so pin it explicitly.
+      - name: Ensure npm supports OIDC trusted publishing
+        run: npm install -g npm@latest
 
       - run: npm ci
 
