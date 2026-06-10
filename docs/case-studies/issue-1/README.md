@@ -85,21 +85,32 @@ a relative filename so Claude can open it with its `Read` tool.
 The raw `command-stream` plumbing is gone. See
 [`image-to-number.mjs`](../../../image-to-number.mjs).
 
-**Did it work? Mostly — with one real bug, now reported.** The call succeeds and
-returns the correct digit, but `result.metadata.success` comes back `false` and
-`metadata.limitReached` comes back `true` on a **fully successful** run. Root
-cause (traced in the agent-commander source): `detectUsageLimit()` regex-scans
+**Did it work? Yes — and a real bug we found was fixed upstream.** The call
+succeeds and returns the correct digit. During the first round of integration
+we found that `result.metadata.success` came back `false` and
+`metadata.limitReached` came back `true` on a **fully successful** run. Root
+cause (traced in the agent-commander source): `detectUsageLimit()` regex-scanned
 the entire raw stream-json output, and the pattern
-`/rate[_\s-]?limit(?:ed| reached| exceeded)?/i` matches the substring
+`/rate[_\s-]?limit(?:ed| reached| exceeded)?/i` matched the substring
 `ratelimit` inside Anthropic's HTTP **header name**
 `anthropic-ratelimit-unified-5h-reset`, which Claude prints in stream-json mode.
 
 - Reported upstream as
   **[link-assistant/agent-commander#37](https://github.com/link-assistant/agent-commander/issues/37)**
   (per R1's "report issues" instruction).
-- Mitigation in this repo: we treat success as `exitCode === 0` **plus** a
-  parseable digit in the assistant text, and never read `metadata.success`.
-  Evidence: [`verification/metadata-quirk.json`](./verification/metadata-quirk.json).
+- **Fixed upstream** in
+  [agent-commander#38](https://github.com/link-assistant/agent-commander/pull/38),
+  released as **v0.6.2**: the regex now requires an explicit qualifier so a bare
+  `ratelimit` no longer matches. Before-fix evidence:
+  [`verification/metadata-quirk.json`](./verification/metadata-quirk.json)
+  (`success: false`); after-fix evidence:
+  [`verification/metadata-fixed.json`](./verification/metadata-fixed.json)
+  (`success: true`, `limitReached: false`).
+- This repo therefore **pins `agent-commander@0.6.2`** (the `AGENT_COMMANDER_VERSION`
+  constant in [`image-to-number.mjs`](../../../image-to-number.mjs)) and now
+  trusts the metadata: `imageToNumber()` calls `assertNotUsageLimited(result.metadata)`
+  to surface a clear "usage limit reached" error instead of a confusing parse
+  failure, in addition to the `exitCode === 0` + parseable-digit checks.
 
 ### R2 — Real local haiku call
 
@@ -118,12 +129,12 @@ Full evidence: [`verification/integration-run.txt`](./verification/integration-r
 
 ### R3 — Unit, integration & CI/CD tests
 
-- **Unit** ([`tests/unit.test.mjs`](../../../tests/unit.test.mjs)) — 17 tests,
+- **Unit** ([`tests/unit.test.mjs`](../../../tests/unit.test.mjs)) — 21 tests,
   fully offline. Pure helpers (`isUrl`, `resolveExtension`, `extractAnswerText`,
-  `extractNumber`, `buildPrompt`, `normalizeOptions`) are tested directly, and
-  `imageToNumber` is exercised end-to-end with an **injected fake agent**
-  (`{ agent }` option) so the copy → call → parse → extract flow runs with no
-  network and no Claude.
+  `extractNumber`, `buildPrompt`, `normalizeOptions`, `assertNotUsageLimited`)
+  are tested directly, and `imageToNumber` is exercised end-to-end with an
+  **injected fake agent** (`{ agent }` option) so the copy → call → parse →
+  extract flow runs with no network and no Claude.
 - **Integration** ([`tests/integration.test.mjs`](../../../tests/integration.test.mjs))
   — real haiku calls; **auto-skips** when the `claude` CLI is absent (or
   `SKIP_INTEGRATION=1`), so CI without Claude credentials stays green.
@@ -177,8 +188,8 @@ underlying _practices_ (changesets + OIDC) via the standard
 `changesets/action`.
 
 **Shared issues to report upstream:** the file comparison did not surface a
-defect present in the templates themselves (the one real bug found, R1, lives in
-`agent-commander`, already reported as #37). See
+defect present in the templates themselves (the one real bug found, R1, lived in
+`agent-commander`, reported as #37 and fixed in #38 / v0.6.2). See
 [`template-comparison.md`](./template-comparison.md) for the file-by-file notes;
 if a template-side fix becomes warranted it will be filed against the relevant
 `link-foundation/*-ai-driven-development-pipeline-template` repo.
@@ -222,7 +233,8 @@ multi-runtime tests (adds a dependency for marginal benefit on a single file —
 
 ## 5. Outcome
 
-- ✅ R1 agent-commander integrated; real bug found and reported (#37).
+- ✅ R1 agent-commander (pinned v0.6.2) integrated; real bug found, reported
+  (#37), and fixed upstream (#38) — the tool now trusts the usage-limit metadata.
 - ✅ R2 real haiku calls verified locally (local + URL inputs).
 - ✅ R3 unit + integration + CI/CD tests in place.
 - ✅ R4 `curl | sh` bootstrap + documented zero-install usage.

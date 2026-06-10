@@ -20,6 +20,7 @@ import {
   extractAnswerText,
   extractNumber,
   buildPrompt,
+  assertNotUsageLimited,
   imageToNumber,
 } from '../image-to-number.mjs';
 
@@ -128,6 +129,35 @@ test('buildPrompt references the file name and asks for digits only', () => {
 });
 
 // ---------------------------------------------------------------------------
+// assertNotUsageLimited
+// ---------------------------------------------------------------------------
+
+test('assertNotUsageLimited is a no-op without limit metadata', () => {
+  assert.doesNotThrow(() => assertNotUsageLimited(undefined));
+  assert.doesNotThrow(() => assertNotUsageLimited({}));
+  assert.doesNotThrow(() => assertNotUsageLimited({ limitReached: false }));
+});
+
+test('assertNotUsageLimited throws when the usage limit was reached', () => {
+  assert.throws(
+    () => assertNotUsageLimited({ limitReached: true }),
+    /usage limit reached/i
+  );
+});
+
+test('assertNotUsageLimited includes the reset time when available', () => {
+  assert.throws(
+    () =>
+      assertNotUsageLimited({
+        limitReached: true,
+        limitResetTime: '3pm',
+        limitTimezone: 'UTC',
+      }),
+    /resets 3pm UTC/
+  );
+});
+
+// ---------------------------------------------------------------------------
 // imageToNumber with an injected fake agent (no network, no Claude)
 // ---------------------------------------------------------------------------
 
@@ -146,6 +176,7 @@ function makeFakeAgent(answer, opts = {}) {
       start: async () => {},
       stop: async () => ({
         exitCode: opts.exitCode ?? 0,
+        metadata: opts.metadata,
         output: {
           plain: answer,
           parsed: [
@@ -203,6 +234,18 @@ test('imageToNumber throws when Claude exits non-zero', async () => {
   await assert.rejects(
     () => imageToNumber(image, { agent: factory }),
     /exited with code 1/
+  );
+});
+
+test('imageToNumber throws a clear error when the usage limit is reached', async () => {
+  const { factory } = makeFakeAgent('7', {
+    metadata: { limitReached: true, limitResetTime: 'later' },
+  });
+  const image = await makeTempImage();
+
+  await assert.rejects(
+    () => imageToNumber(image, { agent: factory }),
+    /usage limit reached/i
   );
 });
 

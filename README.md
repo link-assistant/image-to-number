@@ -113,15 +113,18 @@ object accepts `{ model, keepTemporaryFile, agent }`; the legacy positional form
    and the first run of digits is returned.
 4. The temporary directory is removed (unless `--keep-temporary-file`).
 
-> **Note:** agent-commander currently reports `metadata.success: false` /
-> `limitReached: true` on otherwise-successful Claude runs, because its
-> usage-limit detector matches the substring `ratelimit` inside Anthropic's
-> `anthropic-ratelimit-*` HTTP header names. This tool therefore decides success
-> from the process exit code plus a parseable digit, not from `metadata.success`.
-> Reported upstream as
-> [agent-commander#37](https://github.com/link-assistant/agent-commander/issues/37).
-> See the [case study](docs/case-studies/issue-1/README.md) for the full root
-> cause.
+> **Note:** this tool pins **`agent-commander@0.6.2`**. Earlier versions
+> reported `metadata.success: false` / `limitReached: true` on otherwise-
+> successful Claude runs, because the usage-limit detector matched the substring
+> `ratelimit` inside Anthropic's `anthropic-ratelimit-*` HTTP header names. We
+> reported it as
+> [agent-commander#37](https://github.com/link-assistant/agent-commander/issues/37);
+> it was fixed in
+> [#38](https://github.com/link-assistant/agent-commander/pull/38) and released
+> as v0.6.2. The tool now trusts that metadata: it raises a clear "usage limit
+> reached" error when `metadata.limitReached` is set, in addition to checking the
+> process exit code and a parseable digit. See the
+> [case study](docs/case-studies/issue-1/README.md) for the full root cause.
 
 ## Development
 

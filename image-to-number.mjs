@@ -25,6 +25,16 @@ import { pathToFileURL } from 'url';
 // network — unit tests can import the pure helpers below without any fetch).
 // ---------------------------------------------------------------------------
 
+/**
+ * The pinned `agent-commander` version. 0.6.2 is the first release with the
+ * fix for issue #37 (a false-positive usage-limit detection caused by the
+ * substring `ratelimit` in Anthropic's `anthropic-ratelimit-*` HTTP header
+ * names appearing in stream-json output). With the fix, `metadata.success` and
+ * `metadata.limitReached` are reliable on successful runs.
+ * @see https://github.com/link-assistant/agent-commander/pull/38
+ */
+export const AGENT_COMMANDER_VERSION = '0.6.2';
+
 let _useM;
 let _agentCommander;
 
@@ -54,7 +64,10 @@ export async function loadAgent() {
     return _agentCommander;
   }
   const use = await loadUse();
-  const mod = await use('agent-commander');
+  // Pin to the version that fixes the usage-limit false positive (issue #37 /
+  // PR #38). On that version `metadata.success` and `metadata.limitReached`
+  // are trustworthy on successful runs, so we can rely on them below.
+  const mod = await use(`agent-commander@${AGENT_COMMANDER_VERSION}`);
   _agentCommander = mod.agent;
   return _agentCommander;
 }
@@ -126,6 +139,24 @@ export function extractNumber(answer) {
     throw new Error(`Claude returned a non-digit answer: ${trimmed}`);
   }
   return parseInt(match[0], 10);
+}
+
+/**
+ * Throw a clear error when agent-commander reports that Claude's usage limit
+ * was reached. This relies on `metadata.limitReached`, which only became
+ * trustworthy in agent-commander 0.6.2 (issue #37 fixed a false positive that
+ * fired on every successful run). The check is a no-op when no metadata is
+ * provided, so injected fake agents in unit tests are unaffected.
+ * @param {object|undefined} metadata - `result.metadata` from agent-commander.
+ * @throws {Error} When `metadata.limitReached` is true.
+ */
+export function assertNotUsageLimited(metadata) {
+  if (metadata?.limitReached) {
+    const when = metadata.limitResetTime
+      ? ` (resets ${metadata.limitResetTime}${metadata.limitTimezone ? ` ${metadata.limitTimezone}` : ''})`
+      : '';
+    throw new Error(`Claude usage limit reached${when}. Try again later.`);
+  }
 }
 
 /**
@@ -248,6 +279,10 @@ export async function imageToNumber(
 
     await controller.start({ attached: false });
     const result = await controller.stop();
+
+    // With the pinned agent-commander (>= 0.6.2) usage-limit metadata is
+    // reliable, so surface a clear message instead of a confusing parse error.
+    assertNotUsageLimited(result.metadata);
 
     if (result.exitCode !== 0) {
       throw new Error(

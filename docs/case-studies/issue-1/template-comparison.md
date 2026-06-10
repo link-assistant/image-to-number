@@ -82,11 +82,13 @@ lint gate — is carried here by **husky + lint-staged**, matching the js templa
 ## Defects found in the templates themselves
 
 **None.** The file comparison did not surface a bug that is present in the
-templates. The one real defect found during this work is in **`agent-commander`**
+templates. The one real defect found during this work was in **`agent-commander`**
 (false-positive usage-limit detection from `anthropic-ratelimit-*` header names),
-which is unrelated to the templates and was reported as
+which is unrelated to the templates. It was reported as
 [agent-commander#37](https://github.com/link-assistant/agent-commander/issues/37)
-per R1.
+per R1 and fixed upstream in
+[#38](https://github.com/link-assistant/agent-commander/pull/38) (released as
+v0.6.2, which this repo now pins).
 
 Should a template-side issue be identified later (e.g. the Node version used for
 OIDC publishing — see note below), it will be filed against the relevant
