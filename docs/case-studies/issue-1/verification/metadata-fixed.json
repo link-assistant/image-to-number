@@ -1,0 +1,40 @@
+{
+  "exitCode": 0,
+  "parsedAnswer": "7",
+  "metadata": {
+    "tool": "claude",
+    "exitCode": 0,
+    "success": true,
+    "sessionId": "ee8a7960-e7c2-4e52-81c3-fa6eea81243f",
+    "limitReached": false,
+    "limitResetTime": null,
+    "limitTimezone": null,
+    "anthropicTotalCostUSD": 0.0087812,
+    "publicPricingEstimate": null,
+    "pricingInfo": null,
+    "resultSummary": "7",
+    "resultModelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 18,
+        "outputTokens": 148,
+        "cacheReadInputTokens": 38382,
+        "cacheCreationInputTokens": 3348,
+        "webSearchRequests": 0,
+        "costUSD": 0.0087812,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      }
+    },
+    "streamTokenUsage": {
+      "inputTokens": 36,
+      "outputTokens": 16,
+      "cacheCreationTokens": 6696,
+      "cacheReadTokens": 76764
+    },
+    "subAgentCalls": null,
+    "errorDuringExecution": false,
+    "errorType": null,
+    "errorMessage": null
+  },
+  "note": "Captured with agent-commander@0.6.2 (the release that fixes issue #37 via PR #38). metadata.success is now true and metadata.limitReached is now false on a successful run, so the tool relies on this metadata. Compare with metadata-quirk.json, captured before the fix."
+}

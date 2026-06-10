@@ -1,0 +1,87 @@
+{
+  "name": "@link-assistant/image-to-number",
+  "version": "0.1.0",
+  "description": "Read the number drawn in an image by asking the Claude Code CLI (haiku) via agent-commander.",
+  "type": "module",
+  "main": "image-to-number.mjs",
+  "bin": {
+    "image-to-number": "./image-to-number.mjs"
+  },
+  "files": [
+    "image-to-number.mjs",
+    "image-to-number.sh",
+    "LICENSE",
+    "README.md",
+    "CHANGELOG.md"
+  ],
+  "exports": {
+    ".": {
+      "import": "./image-to-number.mjs"
+    }
+  },
+  "scripts": {
+    "test": "node --test --test-timeout=120000 tests/unit.test.mjs tests/integration.test.mjs",
+    "test:unit": "node --test --test-timeout=30000 tests/unit.test.mjs",
+    "test:integration": "node --test --test-timeout=120000 tests/integration.test.mjs",
+    "test:samples": "node test-image-to-number.mjs",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check:duplication": "jscpd .",
+    "check": "npm run lint && npm run format:check && npm run check:duplication && npm run test:unit",
+    "prepare": "husky || true",
+    "changeset": "changeset",
+    "changeset:version": "changeset version",
+    "changeset:publish": "changeset publish",
+    "changeset:status": "changeset status --since=origin/main"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "haiku",
+    "ocr",
+    "image-to-number",
+    "agent-commander",
+    "ai-driven",
+    "cli"
+  ],
+  "author": "link-assistant",
+  "license": "Unlicense",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/link-assistant/image-to-number.git"
+  },
+  "bugs": {
+    "url": "https://github.com/link-assistant/image-to-number/issues"
+  },
+  "homepage": "https://github.com/link-assistant/image-to-number#readme",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.29.7",
+    "@eslint/js": "^9.38.0",
+    "eslint": "^9.38.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.4",
+    "husky": "^9.1.7",
+    "jscpd": "^4.0.5",
+    "lint-staged": "^16.2.6",
+    "prettier": "^3.6.2"
+  },
+  "lint-staged": {
+    "*.{js,mjs,cjs}": [
+      "eslint --fix --max-warnings 0 --no-warn-ignored",
+      "prettier --write",
+      "prettier --check"
+    ],
+    "*.md": [
+      "prettier --write",
+      "prettier --check"
+    ]
+  }
+}

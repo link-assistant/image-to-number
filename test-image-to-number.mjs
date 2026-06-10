@@ -39,7 +39,7 @@ const testCases = [
   { file: 'w.png', expected: 7 },
   { file: 'x.png', expected: 6 },
   { file: 'y.png', expected: 6 },
-  { file: 'z.png', expected: 5 }
+  { file: 'z.png', expected: 5 },
 ];
 
 console.log('🧪 Testing image-to-number.mjs');
@@ -77,9 +77,15 @@ console.log('='.repeat(50));
 console.log('📊 Test Summary');
 console.log('='.repeat(50));
 console.log(`Total tests: ${testCases.length}`);
-console.log(`✅ Passed: ${passed} (${Math.round(passed/testCases.length*100)}%)`);
-console.log(`❌ Failed: ${failed} (${Math.round(failed/testCases.length*100)}%)`);
-console.log(`⚠️  Errors: ${errors} (${Math.round(errors/testCases.length*100)}%)`);
+console.log(
+  `✅ Passed: ${passed} (${Math.round((passed / testCases.length) * 100)}%)`
+);
+console.log(
+  `❌ Failed: ${failed} (${Math.round((failed / testCases.length) * 100)}%)`
+);
+console.log(
+  `⚠️  Errors: ${errors} (${Math.round((errors / testCases.length) * 100)}%)`
+);
 console.log('='.repeat(50));
 
 if (passed === testCases.length) {

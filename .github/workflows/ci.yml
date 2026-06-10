@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+# Only one run per branch at a time. Cancel superseded PR runs, but let main
+# runs finish so nothing in-flight is interrupted.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  # Fast-fail syntax check before anything slower.
+  syntax:
+    name: Syntax check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Check .mjs syntax
+        run: |
+          set -e
+          for f in $(git ls-files '*.mjs'); do
+            echo "node --check $f"
+            node --check "$f"
+          done
+
+  lint:
+    name: Lint, format & duplication
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [syntax]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: ESLint
+        run: npm run lint
+      - name: Prettier (check)
+        run: npm run format:check
+      - name: Duplication (jscpd)
+        run: npm run check:duplication
+      - name: Secret scan (secretlint)
+        run: npx --yes -p secretlint -p @secretlint/secretlint-rule-preset-recommend secretlint "**/*"
+
+  test:
+    name: Unit tests (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [syntax]
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      # Integration tests skip automatically: the `claude` CLI is not available
+      # (and not authenticated) on CI runners, so only the offline unit tests run.
+      - name: Unit tests
+        run: npm run test:unit

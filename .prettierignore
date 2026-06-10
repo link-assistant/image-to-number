@@ -1,0 +1,12 @@
+node_modules
+coverage
+dist
+reports
+*.min.js
+package-lock.json
+.eslintcache
+.playwright-mcp/
+CLAUDE.md
+experiments/
+# Case study raw data files (downloaded from external sources)
+docs/case-studies/*/data/
