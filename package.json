@@ -1,6 +1,6 @@
 {
   "name": "@link-assistant/image-to-number",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Read the number drawn in an image by asking the Claude Code CLI (haiku) via agent-commander.",
   "type": "module",
   "main": "image-to-number.mjs",
