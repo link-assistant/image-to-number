@@ -20,9 +20,10 @@
     }
   },
   "scripts": {
-    "test": "node --test --test-timeout=120000 tests/unit.test.mjs tests/integration.test.mjs",
+    "test": "node --test --test-timeout=120000 tests/unit.test.mjs tests/integration.test.mjs tests/package.test.mjs",
     "test:unit": "node --test --test-timeout=30000 tests/unit.test.mjs",
     "test:integration": "node --test --test-timeout=120000 tests/integration.test.mjs",
+    "test:package": "node --test --test-timeout=120000 tests/package.test.mjs",
     "test:samples": "node test-image-to-number.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

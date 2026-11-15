@@ -10,9 +10,16 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, writeFile, readdir, access } from 'node:fs/promises';
+import {
+  mkdtemp,
+  readFile,
+  writeFile,
+  readdir,
+  access,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { URL } from 'node:url';
 
 import {
   isUrl,
@@ -22,7 +29,25 @@ import {
   buildPrompt,
   assertNotUsageLimited,
   imageToNumber,
+  runCli,
 } from '../image-to-number.mjs';
+
+test('runCli prints the package version without network access', async (t) => {
+  const { version } = JSON.parse(
+    await readFile(new URL('../package.json', import.meta.url), 'utf8')
+  );
+  const output = t.mock.method(console, 'log', () => {});
+  const network = t.mock.method(globalThis, 'fetch', () => {
+    throw new Error('Version must not load network dependencies');
+  });
+
+  assert.equal(await runCli(['node', 'image-to-number.mjs', '--version']), 0);
+  assert.deepEqual(
+    output.mock.calls.map(({ arguments: args }) => args),
+    [[version]]
+  );
+  assert.equal(network.mock.callCount(), 0);
+});
 
 // ---------------------------------------------------------------------------
 // isUrl

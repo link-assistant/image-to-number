@@ -40,6 +40,8 @@ jobs:
       # Make sure the published artifact is sound before any release.
       - name: Unit tests
         run: npm run test:unit
+      - name: Packed CLI publish preflight
+        run: npm run test:package
 
       # Opens/updates a "Version Packages" PR when changesets are pending, and
       # publishes to npm when that PR is merged (i.e. no changesets remain).
