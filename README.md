@@ -74,6 +74,7 @@ Options:
 | `--model`, `-m`         | `haiku` | Claude model: `haiku`, `sonnet`, `opus`. |
 | `--keep-temporary-file` | `false` | Keep the temp working directory.         |
 | `--help`, `-h`          |         | Show help.                               |
+| `--version`             |         | Print the installed package version.     |
 
 The tool prints just the number to `stdout` and exits `0` on success, or prints
 an error to `stderr` and exits `1`.
@@ -83,7 +84,11 @@ If you install it (`npm install -g @link-assistant/image-to-number`), the
 
 ```sh
 image-to-number images/a.png
+image-to-number --version
 ```
+
+For an installed package or repository checkout, `--version` reads the adjacent
+`package.json` without fetching dependencies or requiring Claude.
 
 ### 3. As an imported function
 
@@ -131,8 +136,9 @@ object accepts `{ model, keepTemporaryFile, agent }`; the legacy positional form
 ```sh
 npm install        # install dev tooling (eslint, prettier, jscpd, changesets…)
 
-npm test           # unit tests (offline) + integration tests (needs claude CLI)
+npm test           # unit + packed CLI + integration tests (needs claude CLI)
 npm run test:unit  # offline unit tests only
+npm run test:package      # pack, install the tarball, and verify the CLI version
 npm run test:integration  # real haiku calls (needs the claude CLI)
 npm run test:samples      # run every images/*.png end-to-end
 
@@ -146,15 +152,19 @@ npm run check      # lint + format:check + duplication
 - **Integration tests** ([`tests/integration.test.mjs`](tests/integration.test.mjs))
   make real `haiku` calls and **auto-skip** when the `claude` CLI is absent (or
   when `SKIP_INTEGRATION=1`).
+- **Package tests** ([`tests/package.test.mjs`](tests/package.test.mjs)) install
+  the tarball into a temporary project and check direct execution, the
+  `node_modules/.bin` entry, and importing the installed module.
 
 ### Continuous integration
 
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs a fast-fail syntax
 check, then lint / format / duplication / secret scanning, then the offline unit
-tests on a Node 20 + 22 matrix. Releases are handled by
+tests and packed CLI smoke test on a Node 20 + 22 matrix. Releases are handled by
 [`.github/workflows/release.yml`](.github/workflows/release.yml) via
 [changesets](https://github.com/changesets/changesets) with npm OIDC trusted
-publishing.
+publishing. The release workflow also runs the packed CLI test before versioning
+or publishing.
 
 ## Case study
 

@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 
-import { copyFile, mkdir, rm, writeFile } from 'fs/promises';
+import { copyFile, mkdir, readFile, rm, writeFile } from 'fs/promises';
+import { realpathSync } from 'fs';
 import { randomBytes } from 'crypto';
-import { pathToFileURL } from 'url';
+import { fileURLToPath, URL } from 'url';
 
 /**
  * image-to-number
@@ -317,6 +318,15 @@ export async function imageToNumber(
  * @returns {Promise<number>} Process exit code.
  */
 export async function runCli(argv) {
+  // Read the installed package metadata without loading any runtime dependencies.
+  if (argv.slice(2).includes('--version')) {
+    const { version } = JSON.parse(
+      await readFile(new URL('./package.json', import.meta.url), 'utf8')
+    );
+    console.log(version);
+    return 0;
+  }
+
   const use = await loadUse();
   const yargsModule = await use('yargs@17.7.2');
   const yargs = yargsModule.default || yargsModule;
@@ -368,7 +378,15 @@ function isCliEntryPoint() {
   if (!process.argv[1]) {
     return false;
   }
-  return import.meta.url === pathToFileURL(process.argv[1]).href;
+  try {
+    return (
+      realpathSync(fileURLToPath(import.meta.url)) ===
+      realpathSync(process.argv[1])
+    );
+  } catch {
+    // An importing application may have a missing or non-file argv[1].
+    return false;
+  }
 }
 
 if (isCliEntryPoint()) {
