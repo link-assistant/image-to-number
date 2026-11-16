@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { delimiter, dirname, join } from 'node:path';
 import { fileURLToPath, URL } from 'node:url';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
@@ -61,6 +61,18 @@ test(
     if (process.platform !== 'win32') {
       await t.test('installed executable --version', () => {
         assert.equal(execFileSync(bin, ['--version'], options), `${version}\n`);
+      });
+      await t.test('installed command on PATH --version', () => {
+        assert.equal(
+          execFileSync('image-to-number', ['--version'], {
+            ...options,
+            env: {
+              ...process.env,
+              PATH: `${dirname(bin)}${delimiter}${process.env.PATH || ''}`,
+            },
+          }),
+          `${version}\n`
+        );
       });
     }
 
